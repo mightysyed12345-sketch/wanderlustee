@@ -2,18 +2,21 @@ const cloudinary = require('cloudinary').v2;
 const multer = require('multer');
 const { CloudinaryStorage } = require('multer-storage-cloudinary');
 
-const requiredConfig = ['CLOUD_NAME', 'CLOUD_API_KEY', 'CLOUD_API_SECRET'];
-const missingConfig = requiredConfig.filter((key) => !process.env[key]);
+const cloudName = process.env.CLOUD_NAME || process.env.CLOUDINARY_CLOUD_NAME;
+const apiKey = process.env.CLOUD_API_KEY || process.env.CLOUDINARY_KEY;
+const apiSecret = process.env.CLOUD_API_SECRET || process.env.CLOUDINARY_SECRET;
 
-if (!missingConfig.length) {
+const hasCloudinary = Boolean(cloudName && apiKey && apiSecret);
+
+if (hasCloudinary) {
   cloudinary.config({
-      cloud_name: process.env.CLOUD_NAME,
-      api_key: process.env.CLOUD_API_KEY,
-      api_secret: process.env.CLOUD_API_SECRET
+      cloud_name: cloudName,
+      api_key: apiKey,
+      api_secret: apiSecret
   });
 }
 
-const storage = missingConfig.length
+const storage = !hasCloudinary
   ? multer.memoryStorage()
   : new CloudinaryStorage({
       cloudinary: cloudinary,
