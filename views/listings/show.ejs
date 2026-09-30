@@ -1,0 +1,72 @@
+<% layout("/layouts/boilerplate") %>
+<script>
+    const mapToken="<%=process.env.MAP_TOKEN %>";
+    const coordinates = JSON.parse('<%- JSON.stringify(listing.geometry.coordinates) %>');
+</script>
+<main class="listing-details">
+    <section class="listing-summary" aria-labelledby="listing-title">
+        <p class="listing-location"><%= listing.location %> - <%= listing.country %></p>
+        <h1 id="listing-title"><%= listing.title %></h1>
+        <img src="<%=listing.image.url%>" class="show-img" alt="<%= listing.title %>">
+        <div class="listing-info">
+            <p class="listing-owner">Owned by <strong><%= listing.owner ? listing.owner.username : "Wanderlust host" %></strong></p>
+            <p class="listing-description"><%= listing.description %></p>
+            <p class="listing-price">&#8377;<%=Number(listing.price).toLocaleString("en-IN")%> <span>per night</span></p>
+        </div>
+        <% if (currUser) { %>
+        <div class="btns">
+            <a href="/listings/<%= listing._id %>/edit" class="btn edit-btn">Edit listing</a>
+            <form method="POST" action="/listings/<%= listing._id %>?_method=DELETE" class="d-inline">
+                <button class="btn delete-btn" type="submit">Delete listing</button>
+            </form>
+        </div>
+        <% } %>
+</section>
+
+<section class="reviews-section" aria-labelledby="reviews-title">
+        <h2 class="review-heading">Leave a Review</h2>
+        <form action="/listings/<%=listing._id%>/reviews" method="POST" novalidate class="review-form needs-validation">
+            <fieldset class="star-rating">
+                <legend>Rating</legend>
+                <% for (let rating = 5; rating >= 1; rating--) { %>
+                    <input type="radio" name="review[rating]" value="<%= rating %>" id="rating-<%= rating %>" required>
+                    <label for="rating-<%= rating %>" title="<%= rating %> star<%= rating === 1 ? '' : 's' %>">&#9733;</label>
+                <% } %>
+            </fieldset>
+            <div class="review-comment">
+                <label for="comment">Comment</label>
+                <textarea name="review[comment]" id="comment" rows="4" class="form-control" placeholder="Share your experience..." required></textarea>
+                <div class="invalid-feedback">Please add a comment for the review</div>
+            </div>
+            <button type="submit" class="btn btn-dark review-submit">Submit Review</button>
+        </form>
+        <hr class="reviews-divider"/>
+        <% if (listing.reviews.length > 0) { %>
+
+        <div class="reviews-list">
+        <h2 id="reviews-title" class="reviews-heading">All Reviews</h2>
+        <% for(review of listing.reviews)  { %>
+            <article class="review-card">
+                <div class="card-body">
+                    <h5 class="card-title">@<%= review.author ? review.author.username : "Anonymous" %></h5>
+                    <p class="card-text review-rating" aria-label="<%= review.rating %> out of 5 stars">
+                        <% for (let rating = 1; rating <= 5; rating++) { %>
+                            <span class="<%= rating <= review.rating ? 'text-warning' : '' %>">&#9733;</span>
+                        <% } %>
+                    </p>
+                    <p class="card-text review-comment-text"><%= review.comment %></p>
+                </div>
+                <form class="mb-3" method="POST" action="/listings/<%=listing._id%>/reviews/<%=review._id%>?_method=DELETE">
+                    <button class="btn btn-sm review-delete-btn" type="submit">Delete</button>
+                </form>
+            </article>
+        <%  } %>
+        </div>
+        <% } %>
+        <div class="map-section mb-3">
+            <h3>Where you'll be </h3>
+            <div id="map"></div>
+        </div>
+    </section>
+    </main>
+<script src="/js/map.js"></script>

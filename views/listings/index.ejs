@@ -1,0 +1,43 @@
+<% layout("/layouts/boilerplate")-%>
+
+<section class="wander-hero">
+    <div class="hero-copy">
+        <span class="eyebrow"><i class="fa-solid fa-sparkles"></i> YOUR NEXT GOOD STORY STARTS HERE</span>
+        <h1>Find a place<br>to <em>feel somewhere.</em></h1>
+        <p>Thoughtful stays for slow mornings, big adventures and everything in between.</p>
+        <form class="hero-search" action="/listings" method="get" role="search">
+            <i class="fa-solid fa-magnifying-glass"></i>
+            <input name="search" value="<%= search || '' %>" placeholder="Try “beach house in Goa”" aria-label="Search stays">
+            <button type="submit">Explore stays <i class="fa-solid fa-arrow-right"></i></button>
+        </form>
+        <button class="planner-trigger" type="button" data-bs-toggle="modal" data-bs-target="#tripPlanner"><span class="planner-spark"><i class="fa-solid fa-wand-magic-sparkles"></i></span><span><b>Not sure where to go?</b><small>Let your AI travel planner find your kind of place.</small></span><i class="fa-solid fa-arrow-right planner-arrow"></i></button>
+    </div>
+    <div class="hero-art" aria-label="A bright coastal holiday home">
+        <div class="hero-photo"></div><div class="hero-note"><i class="fa-solid fa-heart"></i><span><b>Somewhere slower</b><small>Worth taking the long way for</small></span></div><span class="hero-orbit orbit-one"></span><span class="hero-orbit orbit-two"></span>
+    </div>
+</section>
+
+<div class="explore-heading"><div><span class="eyebrow">THE GOOD PLACES</span><h2>Stay somewhere <em>special.</em></h2></div><span class="result-count"><%= allListings.length %> lovely places</span></div>
+<div id="filters" aria-label="Stay categories">
+    <% const categories = [{label:"All stays",icon:"fa-compass"},{label:"Trending",icon:"fa-fire"},{label:"Rooms",icon:"fa-bed"},{label:"Iconic Cities",icon:"fa-city"},{label:"Mountains",icon:"fa-mountain"},{label:"Castles",icon:"fa-chess-rook"},{label:"Arctic",icon:"fa-snowflake"},{label:"Camping",icon:"fa-campground"},{label:"Farms",icon:"fa-tractor"},{label:"Domes",icon:"fa-archway"},{label:"Design",icon:"fa-pen-ruler"}]; %>
+    <% for (const [i,category] of categories.entries()) { %><button class="filter <%= i === 0 ? 'active' : '' %>" type="button" data-category="<%= category.label %>"><i class="fa-solid <%= category.icon %>"></i><span><%= category.label %></span></button><% } %>
+    <label class="tax-toggle" for="taxSwitch"><span>Show total price</span><span class="switch-track"><input type="checkbox" id="taxSwitch"><i></i></span></label>
+</div>
+
+<% if (allListings.length) { %>
+<div class="row row-cols-1 row-cols-sm-2 row-cols-lg-3 row-cols-xl-4 listing-grid">
+    <% for(let listing of allListings) { %>
+    <div class="col listing-item" data-title="<%= listing.title %>" data-place="<%= listing.location %> <%= listing.country %>" data-description="<%= listing.description %>" data-price="<%= listing.price %>">
+        <a href="/listings/<%= listing._id %>" class="listing-link">
+            <div class="listing-card"><div class="listing-image-wrap"><img src="<%= listing.image.url %>" class="listing-photo" alt="<%= listing.title %>" loading="lazy"><span class="image-tag"><i class="fa-regular fa-star"></i> Guest favourite</span><button class="save-stay" type="button" aria-label="Save <%= listing.title %>"><i class="fa-regular fa-heart"></i></button></div>
+                <div class="listing-meta"><div class="listing-title-line"><h3><%= listing.title %></h3><span><i class="fa-solid fa-star"></i> 4.9</span></div><p><%= listing.location %>, <%= listing.country %></p><p class="listing-price-line"><b>₹<%= Number(listing.price).toLocaleString("en-IN") %></b> night <span class="tax-info"> · ₹<%= Math.round(Number(listing.price) * 1.18).toLocaleString("en-IN") %> incl. taxes</span></p></div>
+            </div>
+        </a>
+    </div><% } %>
+</div>
+<div class="empty-state d-none" id="emptyState"><i class="fa-regular fa-compass"></i><h3>No stays in this view just yet</h3><p>Try another category or ask the trip planner to find a match.</p><button class="btn btn-dark" type="button" id="clearFilters">Show all stays</button></div>
+<% } else { %><div class="empty-state"><i class="fa-regular fa-compass"></i><h3>No stays found</h3><p>Try another destination or loosen up your search.</p><a class="btn btn-dark" href="/listings">Browse all stays</a></div><% } %>
+
+<div class="modal fade" id="tripPlanner" tabindex="-1" aria-labelledby="plannerTitle" aria-hidden="true"><div class="modal-dialog modal-dialog-centered modal-lg"><div class="modal-content planner-modal"><div class="modal-header"><div><span class="eyebrow"><i class="fa-solid fa-wand-magic-sparkles"></i> WANDERLUST AI</span><h2 id="plannerTitle">A trip that feels like <em>you.</em></h2></div><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button></div><div class="modal-body"><p class="planner-intro">Tell us what you’re dreaming of. Your local travel assistant will match the stays on this page and sketch out a little getaway.</p><label for="tripPrompt" class="form-label">What does your ideal escape look like?</label><textarea id="tripPrompt" class="form-control planner-input" rows="3" placeholder="A quiet mountain weekend, under ₹8,000 a night, with my partner..."></textarea><div class="prompt-chips"><button type="button">Beach and sunshine</button><button type="button">A quiet mountain break</button><button type="button">A design-forward city stay</button></div><button type="button" class="planner-submit" id="planTrip"><i class="fa-solid fa-wand-magic-sparkles"></i> Find my kind of place</button><div class="planner-result" id="plannerResult" aria-live="polite"></div></div><div class="modal-footer"><small><i class="fa-solid fa-lock"></i> Your prompt is processed in this browser using available stay details.</small></div></div></div></div>
+
+<script src="/js/explore.js" defer></script>
