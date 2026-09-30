@@ -95,9 +95,9 @@ app.use((req,res,next)=>{
 app.use("/listings",listingRouter);
 app.use("/listings/:id/reviews",reviewRouter);
 app.use("/",userRouter);
-// app.get("/",(req,res)=>{
-//     res.send("hi iam root");
-// });
+app.get("/", (req, res) => {
+    res.redirect("/listings");
+});
 async function main(connectionUrl)  {
     await mongoose.connect(connectionUrl, {
         serverSelectionTimeoutMS: 15000,
@@ -212,6 +212,9 @@ const handleValidationErr=(err)=>{
     return err;
 };
 app.use((err,req,res,next)  =>   {
+    if (res.headersSent) {
+        return next(err);
+    }
     if(err.name === "ValidationError" || err instanceof Expresserror)  {
         err = handleValidationErr(err);
     }
