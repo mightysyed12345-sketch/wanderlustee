@@ -16,7 +16,9 @@ const Review=require("./models/review.js");
 const listingRouter=require("./routes/listing.js");
 const reviewRouter=require("./routes/review.js");
 const userRouter=require("./routes/user.js");
-const dbUrl = process.env.ATLASDB_URL || mongourl;
+const dbUrl = process.env.NODE_ENV === "production"
+    ? process.env.ATLASDB_URL
+    : process.env.LOCAL_DB_URL || mongourl;
 
 const session=require("express-session");
 const { MongoStore }=require("connect-mongo");
@@ -25,6 +27,11 @@ const passport=require("passport");
 const LocalStrategy=require("passport-local");
 const User=require("./models/user.js");
 const methodOverride=require("method-override");
+
+let resolveMongoClient;
+const mongoClientPromise = new Promise((resolve) => {
+    resolveMongoClient = resolve;
+});
 
 if (process.env.NODE_ENV === "production") {
     app.set("trust proxy", 1);
@@ -38,12 +45,30 @@ app.engine('ejs', ejsMate);
 app.use(express.static(path.join(__dirname,"public")));
 app.use("/uploads", express.static(path.join(__dirname, "uploads")));
 
+app.get("/health", (req, res) => {
+    res.status(200).json({
+        success: true,
+        database: mongoose.connection.readyState === 1 ? "connected" : "disconnected"
+    });
+});
+
+app.use((req,res,next)=>{
+    if (mongoose.connection.readyState !== 1) {
+        return res.status(503).json({
+            success: false,
+            error: "DatabaseUnavailable",
+            message: "The server is running, but MongoDB is not connected yet. Check ATLASDB_URL and MongoDB Atlas Network Access."
+        });
+    }
+    next();
+});
+
 const sessionOptions={
     secret: process.env.SECRET || "wanderlust_dev_secret",
     resave:false,
     saveUninitialized:false,
     store: MongoStore.create({
-        mongoUrl: dbUrl,
+        clientPromise: mongoClientPromise,
         touchAfter: 24 * 3600,
     }),
     cookie:  {
@@ -72,17 +97,6 @@ app.use((req,res,next)=>{
     next();
 });
 
-app.use((req,res,next)=>{
-    if (req.path !== "/" && mongoose.connection.readyState !== 1) {
-        return res.status(503).json({
-            success: false,
-            error: "DatabaseUnavailable",
-            message: "MongoDB is not connected. Add this server IP to MongoDB Atlas Network Access and restart the app."
-        });
-    }
-    next();
-});
-
 // app.get("/demouser", async(req,res)=>{
 //     let fakeUser=new User({
 //         email:"mightysyed12345@gmail.com",
@@ -102,6 +116,27 @@ async function main(connectionUrl)  {
     await mongoose.connect(connectionUrl, {
         serverSelectionTimeoutMS: 15000,
     });
+}
+
+async function connectDatabase() {
+    if (process.env.NODE_ENV === "production" && !process.env.ATLASDB_URL) {
+        console.error("MongoDB connection not started: set ATLASDB_URL in the production environment.");
+        return;
+    }
+
+    let attempt = 0;
+    while (mongoose.connection.readyState !== 1) {
+        attempt++;
+        try {
+            await main(dbUrl);
+            resolveMongoClient(mongoose.connection.getClient());
+            console.log("connected to DB");
+        } catch (err) {
+            const delayMs = Math.min(2000 * (2 ** Math.min(attempt - 1, 4)), 30000);
+            console.error(`MongoDB connection failed (attempt ${attempt}); retrying in ${delayMs / 1000}s:`, err.message);
+            await new Promise((resolve) => setTimeout(resolve, delayMs));
+        }
+    }
 }
 
 //index route 
@@ -228,24 +263,9 @@ app.use((err,req,res,next)  =>   {
 async function startServer() {
     const port = process.env.PORT || 8080;
 
-    try {
-        await main(dbUrl);
-        console.log("connected to DB");
-    } catch (err) {
-        console.error("Configured database connection failed:", err.message);
-        if (process.env.NODE_ENV !== "production" && !process.env.ATLASDB_URL) {
-            await mongoose.disconnect();
-            try {
-                await main(mongourl);
-                console.log("connected to local MongoDB");
-            } catch (localErr) {
-                console.error("Local MongoDB connection failed:", localErr.message);
-            }
-        }
-    }
-
     app.listen(port,()=>{
         console.log(`server is listening to port ${port}`);
+        void connectDatabase();
     });
 }
 
