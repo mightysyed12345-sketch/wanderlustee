@@ -3,6 +3,7 @@
   "scripts": {
     "start": "node app.js",
     "dev": "nodemon app.js",
+    "seed": "node init/index.js",
     "classroom": "nodemon classroom/server.js"
   },
   "dependencies": {

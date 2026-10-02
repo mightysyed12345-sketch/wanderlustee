@@ -9,6 +9,7 @@ const path=require('path');
 const mongourl='mongodb://127.0.0.1:27017/wanderlust';
 const ejsMate=require("ejs-mate");
 const Listing=require("./models/listing.js");
+const sampleListings=require("./init/data.js").data;
 const wrapAsync=require("./utils/wrapAsync.js");
 const Expresserror=require("./utils/Expresserror.js");
 const {listingSchema,reviewSchema}=require("./schema.js");
@@ -29,6 +30,7 @@ const User=require("./models/user.js");
 const methodOverride=require("method-override");
 
 let resolveMongoClient;
+let databaseReady = false;
 const mongoClientPromise = new Promise((resolve) => {
     resolveMongoClient = resolve;
 });
@@ -48,16 +50,16 @@ app.use("/uploads", express.static(path.join(__dirname, "uploads")));
 app.get("/health", (req, res) => {
     res.status(200).json({
         success: true,
-        database: mongoose.connection.readyState === 1 ? "connected" : "disconnected"
+        database: databaseReady ? "connected" : "disconnected"
     });
 });
 
 app.use((req,res,next)=>{
-    if (mongoose.connection.readyState !== 1) {
+    if (!databaseReady || mongoose.connection.readyState !== 1) {
         return res.status(503).json({
             success: false,
             error: "DatabaseUnavailable",
-            message: "The server is running, but MongoDB is not connected yet. Check ATLASDB_URL and MongoDB Atlas Network Access."
+            message: "The server is running, but MongoDB is not ready yet. Check ATLASDB_URL and MongoDB Atlas Network Access."
         });
     }
     next();
@@ -118,6 +120,23 @@ async function main(connectionUrl)  {
     });
 }
 
+async function seedProductionListingsIfEmpty() {
+    const listingCount = await Listing.countDocuments({});
+    if (listingCount > 0) {
+        return;
+    }
+
+    const listings = sampleListings.map((listing) => ({
+        ...listing,
+        geometry: {
+            type: "Point",
+            coordinates: [0, 0],
+        },
+    }));
+    await Listing.insertMany(listings);
+    console.log(`Production database was empty; added ${listings.length} sample listings.`);
+}
+
 async function connectDatabase() {
     if (process.env.NODE_ENV === "production" && !process.env.ATLASDB_URL) {
         console.error("MongoDB connection not started: set ATLASDB_URL in the production environment.");
@@ -125,15 +144,21 @@ async function connectDatabase() {
     }
 
     let attempt = 0;
-    while (mongoose.connection.readyState !== 1) {
+    while (!databaseReady) {
         attempt++;
         try {
-            await main(dbUrl);
+            if (mongoose.connection.readyState !== 1) {
+                await main(dbUrl);
+            }
+            if (process.env.NODE_ENV === "production") {
+                await seedProductionListingsIfEmpty();
+            }
             resolveMongoClient(mongoose.connection.getClient());
+            databaseReady = true;
             console.log("connected to DB");
         } catch (err) {
             const delayMs = Math.min(2000 * (2 ** Math.min(attempt - 1, 4)), 30000);
-            console.error(`MongoDB connection failed (attempt ${attempt}); retrying in ${delayMs / 1000}s:`, err.message);
+            console.error(`MongoDB initialization failed (attempt ${attempt}); retrying in ${delayMs / 1000}s:`, err.message);
             await new Promise((resolve) => setTimeout(resolve, delayMs));
         }
     }

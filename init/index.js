@@ -2,15 +2,17 @@ require("dotenv").config();
 const mongoose=require("mongoose");
 const initdata=require("./data.js");
 const Listing=require("../models/listing.js");
-const mbxGeocoding=require("@mapbox/mapbox-sdk/services/geocoding");
 const localDbUrl = "mongodb://127.0.0.1:27017/wanderlust";
 const dbUrl = process.env.NODE_ENV === "production"
     ? process.env.ATLASDB_URL
-    : localDbUrl;
+    : process.env.LOCAL_DB_URL || localDbUrl;
 
 async function initDB() {
+    if (!dbUrl) {
+        throw new Error("Set ATLASDB_URL before seeding the production database.");
+    }
+
     await mongoose.connect(dbUrl);
-    await Listing.deleteMany({});
 
     const listings = initdata.data.map((obj) => ({
         ...obj,
@@ -21,12 +23,27 @@ async function initDB() {
         },
     }));
 
-    await Listing.insertMany(listings);
-    console.log("data was initialised");
-    await mongoose.disconnect();
+    const result = await Listing.bulkWrite(
+        listings.map((listing) => ({
+            updateOne: {
+                filter: {
+                    title: listing.title,
+                    location: listing.location,
+                    country: listing.country,
+                },
+                update: { $setOnInsert: listing },
+                upsert: true,
+            },
+        }))
+    );
+    console.log(`Seed complete: added ${result.upsertedCount} listings; existing listings were preserved.`);
 }
 
-initDB().catch((err) => {
-    console.error(err);
-    process.exitCode = 1;
-});
+initDB()
+    .catch((err) => {
+        console.error("Listing seed failed:", err);
+        process.exitCode = 1;
+    })
+    .finally(async () => {
+        await mongoose.disconnect();
+    });
